@@ -13,21 +13,25 @@ import com.flightapp.exception.ExceptionDuetoTiming;
 import com.flightapp.exception.NotFoundException;
 import com.flightapp.repository.BookingRepository;
 import com.flightapp.repository.FlightInventoryRepository;
-import com.flightapp.service.util.PnrGenerator;
 
+
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 
 import java.util.Set;
-
+import java.security.SecureRandom;
 @Service
 @RequiredArgsConstructor
 public class BookingService {
 
     private final FlightInventoryRepository inventoryRepo;
     private final BookingRepository bookingRepo;
-
+    private static final String CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final SecureRandom rnd = new SecureRandom();
+    private static final int Length = 8; 
+    
     @Transactional
     public Booking bookTicket(Long flightId, BookingRequestDto dto) {
 
@@ -60,7 +64,12 @@ public class BookingService {
         
         String pnr;
         do {
-            pnr = PnrGenerator.generate(6);
+            
+            StringBuilder sb = new StringBuilder(Length);
+            for (int i = 0; i < Length; i++) {
+                sb.append(CHARS.charAt(rnd.nextInt(CHARS.length())));
+            }
+            pnr= "PNR" + sb;
         } while (bookingRepo.findByPnr(pnr).isPresent());
 
         
