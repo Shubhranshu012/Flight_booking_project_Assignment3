@@ -151,7 +151,7 @@ class BookingControllerTest {
 
     @Test
     void cancelBooking_success() throws Exception {
-        // bookingService.cancelBooking does not return value; we mock to do nothing
+        
         Mockito.doNothing().when(bookingService).cancelBooking("A1B2C3");
 
         mockMvc.perform(delete("/api/v1.0/flight/booking/cancel/A1B2C3"))
