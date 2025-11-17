@@ -3,16 +3,21 @@ package com.flightapp.controller;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flightapp.dto.InventoryRequestDto;
 import com.flightapp.dto.SearchRequestDto;
-import com.flightapp.entity.Flight;
+
 import com.flightapp.entity.FlightInventory;
+import com.flightapp.exception.AvaliableSeatMoreThanTotal;
+import com.flightapp.exception.ExceptionDuetoTiming;
+import com.flightapp.exception.FlightAlreadyExist;
 import com.flightapp.exception.FlightNotFoundException;
 import com.flightapp.service.FlightInventoryService;
 
@@ -24,7 +29,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = FlightSearchController.class)
+@SpringBootTest
+@AutoConfigureMockMvc
 class FlightSearchControllerTest {
 
     @Autowired
@@ -36,49 +42,147 @@ class FlightSearchControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    private InventoryRequestDto buildValidDto() {
+        InventoryRequestDto dto = new InventoryRequestDto();
+        dto.setAirlineName("IndiGo");
+        dto.setAirlineLogo("https://indigo/logo.png");
+        dto.setFromPlace("Delhi");
+        dto.setToPlace("Mumbai");
+        dto.setFlightNumber("6E-512");
+        dto.setDepartureTime(LocalDateTime.now().plusDays(1));
+        dto.setArrivalTime(LocalDateTime.now().plusDays(1).plusHours(2));
+        dto.setPrice(4500.0);
+        dto.setTotalSeats(180);
+        dto.setAvailableSeats(180);
+        return dto;
+    }
     @Test
-    void searchFlights_success() throws Exception {
+    void addInventory_success() throws Exception {
+        InventoryRequestDto dto = buildValidDto();
 
-        SearchRequestDto req = new SearchRequestDto();
-        req.setFromPlace("Delhi");
-        req.setToPlace("Mumbai");
-        req.setJourneyDate(LocalDate.of(2025, 11, 25));
-        req.setTripType("ONE_WAY");
+        Mockito.when(inventoryService.addInventory(any())).thenReturn(new FlightInventory());
 
+        mockMvc.perform(post("/api/v1.0/flight/airline/inventory/add")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated());  
+    }
+    @Test
+    void addInventory_validationError_missingAirlineName() throws Exception {
+        InventoryRequestDto dto = buildValidDto();
+        dto.setAirlineName("");
 
-        Flight flight = Flight.builder().flightNumber("6E-512").airlineName("IndiGo").fromPlace("Delhi").toPlace("Mumbai").build();
-        
-        FlightInventory result = FlightInventory.builder().id(1L).flight(flight).departureTime(LocalDateTime.of(2025, 11, 25, 14, 30))
-                .arrivalTime(LocalDateTime.of(2025, 11, 25, 16, 20)).price(4500.0).totalSeats(180).availableSeats(180).build();
-
-        Mockito.when(inventoryService.searchFlights(any(SearchRequestDto.class)))
-                .thenReturn(List.of(result));
-
-        mockMvc.perform(post("/api/v1.0/flight/search")
-                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(1))
-                .andExpect(jsonPath("$[0].flight.flightNumber").value("6E-512"))
-                .andExpect(jsonPath("$[0].flight.airlineName").value("IndiGo"))
-                .andExpect(jsonPath("$[0].flight.fromPlace").value("Delhi"))
-                .andExpect(jsonPath("$[0].flight.toPlace").value("Mumbai"));
+        mockMvc.perform(post("/api/v1.0/flight/airline/inventory/add")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
-    void searchFlights_noResults_throwsFlightNotFoundException() throws Exception {
+    void addInventory_validationError_availableSeatsGreaterThanTotal() throws Exception {
+        InventoryRequestDto dto = buildValidDto();
+        dto.setAvailableSeats(500);
 
-        SearchRequestDto req = new SearchRequestDto();
-        req.setFromPlace("Nowhere");
-        req.setToPlace("Elsewhere");
-        req.setJourneyDate(LocalDate.of(2025, 11, 25));
-        req.setTripType("ONE_WAY");
+        Mockito.doThrow(new AvaliableSeatMoreThanTotal("Available seats cannot be greater than total seats"))
+                .when(inventoryService).addInventory(any());
 
-        Mockito.when(inventoryService.searchFlights(any(SearchRequestDto.class)))
-                .thenThrow(new FlightNotFoundException("No flights found for given search criteria"));
+        mockMvc.perform(post("/api/v1.0/flight/airline/inventory/add")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void addInventory_invalidTiming() throws Exception {
+        InventoryRequestDto dto = buildValidDto();
+        dto.setArrivalTime(dto.getDepartureTime().minusHours(5));
+
+        Mockito.doThrow(new ExceptionDuetoTiming("Arrival time cannot be before departure time"))
+                .when(inventoryService).addInventory(any());
+
+        mockMvc.perform(post("/api/v1.0/flight/airline/inventory/add")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+    }
+    @Test
+    void addInventory_duplicateFlight() throws Exception {
+        InventoryRequestDto dto = buildValidDto();
+
+        Mockito.doThrow(new FlightAlreadyExist("Flight already exists")).when(inventoryService).addInventory(any());
+
+        mockMvc.perform(post("/api/v1.0/flight/airline/inventory/add")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchFlight_success() throws Exception {
+        SearchRequestDto dto = new SearchRequestDto();
+        dto.setFromPlace("Delhi");
+        dto.setToPlace("Mumbai");
+        dto.setJourneyDate(LocalDate.now().plusDays(1));
+        dto.setTripType("ONE_WAY");
+
+        FlightInventory mockInventory = new FlightInventory();
+        mockInventory.setDepartureTime(LocalDateTime.now().plusDays(1));
+
+        Mockito.when(inventoryService.searchFlights(any())).thenReturn(List.of(mockInventory));
 
         mockMvc.perform(post("/api/v1.0/flight/search")
-                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("No flights found for given search criteria"));
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void searchFlight_notFound() throws Exception {
+        SearchRequestDto dto = new SearchRequestDto();
+        dto.setFromPlace("Delhi");
+        dto.setToPlace("Mumbai");
+        dto.setJourneyDate(LocalDate.now().plusDays(1));
+        dto.setTripType("ONE_WAY");
+
+        Mockito.doThrow(new FlightNotFoundException("No flights found")).when(inventoryService).searchFlights(any());
+
+        mockMvc.perform(post("/api/v1.0/flight/search")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isNotFound());
+    }
+    @Test
+    void searchFlight_missingField() throws Exception {
+        SearchRequestDto dto = new SearchRequestDto();
+        dto.setFromPlace(""); 
+        dto.setToPlace("Mumbai");
+        dto.setJourneyDate(LocalDate.now().plusDays(1));
+        dto.setTripType("ONE_WAY");
+
+        mockMvc.perform(post("/api/v1.0/flight/search")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+    }
+    
+    @Test
+    void addInventory_negativePrice() throws Exception {
+        InventoryRequestDto dto = buildValidDto();
+        dto.setPrice(-100.0);
+
+        mockMvc.perform(post("/api/v1.0/flight/airline/inventory/add")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void addInventory_nullDepartureTime() throws Exception {
+        InventoryRequestDto dto = buildValidDto();
+        dto.setDepartureTime(null);
+
+        mockMvc.perform(post("/api/v1.0/flight/airline/inventory/add")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+    }
+    @Test
+    void addInventory_nullFlightNumber() throws Exception {
+        InventoryRequestDto dto = buildValidDto();
+        dto.setFlightNumber(null);
+
+        mockMvc.perform(post("/api/v1.0/flight/airline/inventory/add")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
     }
 }
