@@ -40,30 +40,18 @@ public class FlightInventoryService {
     	if (duplicate.isPresent()) {
     	        throw new FlightAlreadyExist("Flight already exists with same details (airline, flightNumber, route, departureTime)");
     	}
-    	Flight flight = flightRepo.findById(dto.getFlightNumber())
-    			.orElseGet(() -> {
-    			Flight f = Flight.builder()
-    			.flightNumber(dto.getFlightNumber())
-    			.airlineName(dto.getAirlineName())
-    			.fromPlace(dto.getFromPlace())
-    			.toPlace(dto.getToPlace())
-    			.build();
+    	
+    	Flight flight = flightRepo.findById(dto.getFlightNumber()).orElseGet(() -> {
+    			Flight f = Flight.builder().flightNumber(dto.getFlightNumber()).airlineName(dto.getAirlineName()).fromPlace(dto.getFromPlace()).toPlace(dto.getToPlace()).build();
     			return flightRepo.save(f);
-    			});
+    	});
 
 
-    			FlightInventory fi = FlightInventory.builder()
-    			.flight(flight)
-    			.departureTime(dto.getDepartureTime())
-    			.arrivalTime(dto.getArrivalTime())
-    			.price(dto.getPrice())
-    			.totalSeats(dto.getTotalSeats())
-    			.availableSeats(dto.getAvailableSeats())
-    			.active(true)
-    			.build();
+    	FlightInventory fi = FlightInventory.builder().flight(flight).departureTime(dto.getDepartureTime()).arrivalTime(dto.getArrivalTime()).price(dto.getPrice())
+    			.totalSeats(dto.getTotalSeats()).availableSeats(dto.getAvailableSeats()).active(true).build();
 
 
-    			return inventoryRepo.save(fi);
+    	return inventoryRepo.save(fi);
     }
 
     public List<FlightInventory> searchFlights(SearchRequestDto dto) {
