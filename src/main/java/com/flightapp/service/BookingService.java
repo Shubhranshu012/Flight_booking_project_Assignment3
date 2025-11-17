@@ -15,28 +15,25 @@ import com.flightapp.repository.BookingRepository;
 import com.flightapp.repository.FlightInventoryRepository;
 
 
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
-
 import java.util.Set;
-import java.security.SecureRandom;
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 public class BookingService {
 
     private final FlightInventoryRepository inventoryRepo;
+    
     private final BookingRepository bookingRepo;
-    private static final String CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    private static final SecureRandom rnd = new SecureRandom();
-    private static final int Length = 8; 
+    
     
     @Transactional
     public Booking bookTicket(Long flightId, BookingRequestDto dto) {
 
-        FlightInventory flight = inventoryRepo.findById(flightId)
-                .orElseThrow(() -> new NotFoundException("Flight not found"));
+        FlightInventory flight = inventoryRepo.findById(flightId).orElseThrow(() -> new NotFoundException("Flight not found"));
 
         if (flight.getAvailableSeats() < dto.getNumberOfSeats()) {
             throw new ExceptionDueToSeat("Not enough seats available");
@@ -62,48 +59,39 @@ public class BookingService {
         inventoryRepo.save(flight);
 
         
-        String pnr;
-        do {
-            
-            StringBuilder sb = new StringBuilder(Length);
-            for (int i = 0; i < Length; i++) {
-                sb.append(CHARS.charAt(rnd.nextInt(CHARS.length())));
-            }
-            pnr= "PNR" + sb;
-        } while (bookingRepo.findByPnr(pnr).isPresent());
+        String pnr = "PNR" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
         
         List<Passenger> passengers = dto.getPassengers().stream()
-                .map(p -> Passenger.builder()
-                        .name(p.getName()).gender(p.getGender()).age(p.getAge())
-                        .seatNumber(p.getSeatNumber()).mealOption(p.getMealOption()).build()).toList();
+        		.map(p -> Passenger.builder().name(p.getName()).gender(p.getGender())
+        		.age(p.getAge()).seatNumber(p.getSeatNumber()).mealOption(p.getMealOption())
+        		.build()).toList();
 
-        
-        Double totalPrice = dto.getNumberOfSeats()*flight.getPrice();
 
-        Booking booking = Booking.builder()
-                .pnr(pnr)
-                .email(dto.getEmail())
-                .bookingTime(LocalDateTime.now())
+        Double totalPrice = dto.getNumberOfSeats() * flight.getPrice();
+
+
+        Booking booking = Booking.builder().pnr(pnr).email(dto.getEmail()).bookingTime(LocalDateTime.now())
+                .departureTime(flight.getDepartureTime()).arrivalTime(flight.getArrivalTime())
                 .journeyDateTime(flight.getDepartureTime())
-                .departureTime(flight.getDepartureTime())    
-                .flightId(flightId)
-                .flightNumber(flight.getFlightNumber())
-                .arrivalTime(flight.getArrivalTime())  
-                .totalPrice(totalPrice)
-                .passengers(passengers).fromPlace(flight.getFromPlace())
-                .toPlace(flight.getToPlace()).flightId(flightId).cancelled(false).build();
+                .flight(flight.getFlight()).inventoryId(flight.getId()).totalPrice(totalPrice)
+                .passengers(passengers).cancelled(false).build();
 
         return bookingRepo.save(booking);
     }
 
     public Booking getByPnr(String pnr) {
-        return bookingRepo.findByPnr(pnr)
-                .orElseThrow(() -> new NotFoundException("PNR not found"));
+        Booking booking = bookingRepo.findByPnr(pnr).orElseThrow(() -> new NotFoundException("PNR not found"));
+
+        if (booking.isCancelled()) {
+            throw new NotFoundException("This ticket has been cancelled");
+        }
+
+        return booking;
     }
 
     public List<Booking> history(String email) {
-        List<Booking> list = bookingRepo.findByEmailOrderByBookingTimeDesc(email);
+        List<Booking> list = bookingRepo.findActiveBookingsByEmail(email);
 
         if (list.isEmpty()) {
             throw new NotFoundException("No booking history found for: " + email);
@@ -111,15 +99,13 @@ public class BookingService {
 
         return list;
     }
+    
     @Transactional
     public void cancelBooking(String pnr) {
 
-        Booking booking = bookingRepo.findByPnr(pnr)
-                .orElseThrow(() -> new NotFoundException("PNR not found"));
+        Booking booking = bookingRepo.findByPnr(pnr).orElseThrow(() -> new NotFoundException("PNR not found"));
 
-        LocalDateTime now = LocalDateTime.now();
-
-        if (!booking.getJourneyDateTime().isAfter(now.plusHours(24))) {
+        if (!booking.getJourneyDateTime().isAfter(LocalDateTime.now().plusHours(24))) {
             throw new ExceptionDuetoTiming("Cannot cancel within 24 hours of journey");
         }
 
@@ -131,14 +117,9 @@ public class BookingService {
         booking.setCancelledAt(LocalDateTime.now());
         bookingRepo.save(booking);
 
-        
-        FlightInventory flight = inventoryRepo.findById(booking.getFlightId())
-                .orElseThrow();
+        FlightInventory fi = inventoryRepo.findById(booking.getInventoryId()).orElseThrow(() -> new NotFoundException("Inventory not found"));
 
-        flight.setAvailableSeats(
-                flight.getAvailableSeats() + booking.getPassengers().size()
-        );
-
-        inventoryRepo.save(flight);
+        fi.setAvailableSeats(fi.getAvailableSeats() + booking.getPassengers().size());
+        inventoryRepo.save(fi);
     }
 }

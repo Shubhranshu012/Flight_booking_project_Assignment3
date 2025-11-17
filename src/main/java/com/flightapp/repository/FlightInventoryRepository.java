@@ -9,16 +9,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-public interface FlightInventoryRepository extends JpaRepository<FlightInventory, Long> {
+import org.springframework.data.repository.query.Param;
 
-    List<FlightInventory> findByFromPlaceAndToPlaceAndDepartureTimeBetween(
-            String fromPlace,
-            String toPlace,
-            LocalDateTime start,
-            LocalDateTime end
-    );
-    
-    @Query("SELECT f FROM FlightInventory f WHERE " +"f.airlineName = :airlineName AND " +"f.flightNumber = :flightNumber AND " +
-    	    "f.fromPlace = :fromPlace AND " +"f.toPlace = :toPlace AND " +"f.departureTime = :departureTime")
-    Optional<FlightInventory> findDuplicateFlight(String airlineName,String flightNumber,String fromPlace,String toPlace,LocalDateTime departureTime);
+public interface FlightInventoryRepository extends JpaRepository<FlightInventory, Long> {
+	@Query("select fi from FlightInventory fi where fi.flight.fromPlace = :from and fi.flight.toPlace = :to and fi.departureTime between :start and :end")
+	List<FlightInventory> findByFromPlaceAndToPlaceAndDepartureTimeBetween(@Param("from") String from, @Param("to") String to, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+	
+	
+	@Query("select fi from FlightInventory fi where fi.flight.airlineName = :airline and fi.flight.flightNumber = :flightNumber and fi.flight.fromPlace = :from and fi.flight.toPlace = :to and fi.departureTime = :departure")
+	Optional<FlightInventory> findDuplicateFlight(@Param("airline") String airline, @Param("flightNumber") String flightNumber, @Param("from") String from, @Param("to") String to, @Param("departure") LocalDateTime departure);
 }

@@ -9,7 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.flightapp.dto.InventoryRequestDto;
-import com.flightapp.entity.FlightInventory;
 import com.flightapp.service.FlightInventoryService;
 
 import jakarta.validation.Valid;

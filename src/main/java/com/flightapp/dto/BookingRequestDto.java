@@ -6,7 +6,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 import lombok.*;
 
 import java.util.List;
@@ -23,7 +22,7 @@ public class BookingRequestDto {
     private Integer numberOfSeats;
 
     @NotNull(message = "Passengers list cannot be null")
-    @Size(min = 1, message = "At least 1 passenger is required")
+    @Min(value = 1, message = "At least 1 passenger is required")
     @Valid   
     private List<PassengerDto> passengers;
     
@@ -32,6 +31,6 @@ public class BookingRequestDto {
     private String mealOption;
 
     @NotNull(message = "Seat numbers are required")
-    @Size(min = 1, message = "At least 1 seat number required")
+    @Min(value = 1, message = "At least 1 seat number required")
     private List<String> seatNumbers;
 }

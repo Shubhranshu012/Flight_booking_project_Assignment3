@@ -25,3 +25,4 @@ public class SearchRequestDto {
 
     private LocalDate returnDate; 
 }
+

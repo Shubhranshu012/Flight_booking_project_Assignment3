@@ -5,12 +5,14 @@ import org.springframework.stereotype.Service;
 
 import com.flightapp.dto.InventoryRequestDto;
 import com.flightapp.dto.SearchRequestDto;
+import com.flightapp.entity.Flight;
 import com.flightapp.entity.FlightInventory;
 import com.flightapp.exception.AvaliableSeatMoreThanTotal;
 import com.flightapp.exception.ExceptionDuetoTiming;
 import com.flightapp.exception.FlightAlreadyExist;
 import com.flightapp.exception.FlightNotFoundException;
 import com.flightapp.repository.FlightInventoryRepository;
+import com.flightapp.repository.FlightRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,7 +24,7 @@ public class FlightInventoryService {
 
     private final FlightInventoryRepository inventoryRepo;
     
-    
+    private final FlightRepository flightRepo;
     
     public FlightInventory addInventory(InventoryRequestDto dto) {
     	
@@ -38,35 +40,48 @@ public class FlightInventoryService {
     	if (duplicate.isPresent()) {
     	        throw new FlightAlreadyExist("Flight already exists with same details (airline, flightNumber, route, departureTime)");
     	}
-        FlightInventory fi = FlightInventory.builder()
-                .airlineName(dto.getAirlineName())
-                .airlineLogoUrl(dto.getAirlineLogo())
-                .fromPlace(dto.getFromPlace())
-                .toPlace(dto.getToPlace())
-                .departureTime(dto.getDepartureTime())
-                .arrivalTime(dto.getArrivalTime())
-                .price(dto.getPrice())
-                .totalSeats(dto.getTotalSeats())
-                .availableSeats(dto.getAvailableSeats())
-                .flightNumber(dto.getFlightNumber()) 
-                .active(true)
-                .build();
+    	Flight flight = flightRepo.findById(dto.getFlightNumber())
+    			.orElseGet(() -> {
+    			Flight f = Flight.builder()
+    			.flightNumber(dto.getFlightNumber())
+    			.airlineName(dto.getAirlineName())
+    			.fromPlace(dto.getFromPlace())
+    			.toPlace(dto.getToPlace())
+    			.build();
+    			return flightRepo.save(f);
+    			});
 
-        return inventoryRepo.save(fi);
+
+    			FlightInventory fi = FlightInventory.builder()
+    			.flight(flight)
+    			.departureTime(dto.getDepartureTime())
+    			.arrivalTime(dto.getArrivalTime())
+    			.price(dto.getPrice())
+    			.totalSeats(dto.getTotalSeats())
+    			.availableSeats(dto.getAvailableSeats())
+    			.active(true)
+    			.build();
+
+
+    			return inventoryRepo.save(fi);
     }
 
     public List<FlightInventory> searchFlights(SearchRequestDto dto) {
 
-        LocalDateTime start = dto.getJourneyDate().atStartOfDay();
-        LocalDateTime end = dto.getJourneyDate().atTime(23, 59, 59);
 
-        List<FlightInventory> result =inventoryRepo.findByFromPlaceAndToPlaceAndDepartureTimeBetween(dto.getFromPlace(),dto.getToPlace(),start,end);
+    	LocalDateTime start = dto.getJourneyDate().atStartOfDay();
+    	LocalDateTime end = dto.getJourneyDate().atTime(23, 59, 59);
 
-        if (result.isEmpty()) {
-            throw new FlightNotFoundException("No flights found for given search criteria");
-        }
 
-        return result;
+    	List<FlightInventory> result = inventoryRepo.findByFromPlaceAndToPlaceAndDepartureTimeBetween(dto.getFromPlace(), dto.getToPlace(), start, end);
+
+
+    	if (result.isEmpty()) {
+    	throw new FlightNotFoundException("No flights found for given search criteria");
+    	}
+
+
+    	return result;
     }
 
 }
