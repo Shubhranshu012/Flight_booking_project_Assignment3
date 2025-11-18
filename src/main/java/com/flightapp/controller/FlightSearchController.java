@@ -11,6 +11,7 @@ import com.flightapp.service.FlightInventoryService;
 import jakarta.validation.Valid;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -19,7 +20,7 @@ public class FlightSearchController {
     private final FlightInventoryService inventoryService;
 
     @PostMapping("/api/v1.0/flight/search")
-    public ResponseEntity<List<FlightInventory>> search(@Valid @RequestBody SearchRequestDto dto) {
+    public ResponseEntity<Map<String, List<FlightInventory>>> search(@Valid @RequestBody SearchRequestDto dto) {
         return ResponseEntity.ok(inventoryService.searchFlights(dto));
     }
 }

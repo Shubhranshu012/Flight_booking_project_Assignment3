@@ -15,7 +15,9 @@ import com.flightapp.repository.FlightInventoryRepository;
 import com.flightapp.repository.FlightRepository;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -54,22 +56,39 @@ public class FlightInventoryService {
     	return inventoryRepo.save(fi);
     }
 
-    public List<FlightInventory> searchFlights(SearchRequestDto dto) {
+    public Map<String, List<FlightInventory>> searchFlights(SearchRequestDto dto) {
 
+        Map<String, List<FlightInventory>> response = new HashMap<>();
 
-    	LocalDateTime start = dto.getJourneyDate().atStartOfDay();
-    	LocalDateTime end = dto.getJourneyDate().atTime(23, 59, 59);
+        LocalDateTime onwardStart = dto.getJourneyDate().atStartOfDay();
+        LocalDateTime onwardEnd = dto.getJourneyDate().atTime(23, 59, 59);
 
+        List<FlightInventory> onwardFlights =inventoryRepo.findByFromPlaceAndToPlaceAndDepartureTimeBetween(dto.getFromPlace(), dto.getToPlace(),onwardStart,onwardEnd );
 
-    	List<FlightInventory> result = inventoryRepo.findByFromPlaceAndToPlaceAndDepartureTimeBetween(dto.getFromPlace(), dto.getToPlace(), start, end);
+        if (onwardFlights.isEmpty()) {
+            throw new FlightNotFoundException("No onward flights found");
+        }
 
+        response.put("onwardFlights", onwardFlights);
 
-    	if (result.isEmpty()) {
-    	throw new FlightNotFoundException("No flights found for given search criteria");
-    	}
+        if (dto.getTripType().equalsIgnoreCase("ROUND_TRIP")) {
 
+            if (dto.getReturnDate() == null) {
+                throw new ExceptionDuetoTiming("Return date is required for ROUND_TRIP");
+            }
 
-    	return result;
+            LocalDateTime returnStart = dto.getReturnDate().atStartOfDay();
+            LocalDateTime returnEnd = dto.getReturnDate().atTime(23, 59, 59);
+
+            List<FlightInventory> returnFlights =inventoryRepo.findByFromPlaceAndToPlaceAndDepartureTimeBetween(dto.getToPlace(),dto.getFromPlace(),returnStart,returnEnd);
+
+            if (returnFlights.isEmpty()) {
+                throw new FlightNotFoundException("No return flights found");
+            }
+
+            response.put("returnFlights", returnFlights);
+        }
+
+        return response;
     }
-
 }

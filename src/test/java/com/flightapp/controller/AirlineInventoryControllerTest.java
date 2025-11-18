@@ -57,7 +57,34 @@ class AirlineInventoryControllerTest {
                 .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.airlineName").exists());
     }
+    @Test
+    void addInventory_validationError_timeDeparture() throws Exception {
+        InventoryRequestDto dto = buildValidDto();
+        dto.setDepartureTime(null);
 
+        mockMvc.perform(post("/api/v1.0/flight/airline/inventory/add")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+    }
+    @Test
+    void addInventory_validationError_timeArival() throws Exception {
+        InventoryRequestDto dto = buildValidDto();
+        dto.setArrivalTime(null);
+
+        mockMvc.perform(post("/api/v1.0/flight/airline/inventory/add")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+    }
+    @Test
+    void addInventory_validationError_timeMisMatch() throws Exception {
+        InventoryRequestDto dto = buildValidDto();
+        dto.setDepartureTime(LocalDateTime.now().plusDays(2));
+        dto.setArrivalTime(LocalDateTime.now().plusDays(1).plusHours(2));
+
+        mockMvc.perform(post("/api/v1.0/flight/airline/inventory/add")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+    }
     @Test
     void addInventory_validationError_missingFromPlace() throws Exception {
         InventoryRequestDto dto = buildValidDto();

@@ -23,7 +23,9 @@ import com.flightapp.service.FlightInventoryService;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -123,27 +125,61 @@ class FlightSearchControllerTest {
         FlightInventory mockInventory = new FlightInventory();
         mockInventory.setDepartureTime(LocalDateTime.now().plusDays(1));
 
-        Mockito.when(inventoryService.searchFlights(any())).thenReturn(List.of(mockInventory));
 
         mockMvc.perform(post("/api/v1.0/flight/search")
                 .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk());
     }
-
+    
     @Test
-    void searchFlight_notFound() throws Exception {
+    void searchFlight_Failure() throws Exception {
         SearchRequestDto dto = new SearchRequestDto();
         dto.setFromPlace("Delhi");
-        dto.setToPlace("Mumbai");
+        dto.setToPlace("");
         dto.setJourneyDate(LocalDate.now().plusDays(1));
         dto.setTripType("ONE_WAY");
 
-        Mockito.doThrow(new FlightNotFoundException("No flights found")).when(inventoryService).searchFlights(any());
+        FlightInventory mockInventory = new FlightInventory();
+        mockInventory.setDepartureTime(LocalDateTime.now().plusDays(1));
 
         mockMvc.perform(post("/api/v1.0/flight/search")
                 .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isBadRequest());
     }
+    
+    @Test
+    void searchFlight_FailureTime() throws Exception {
+        SearchRequestDto dto = new SearchRequestDto();
+        dto.setFromPlace("Delhi");
+        dto.setToPlace("Bhubaneswar");
+        dto.setTripType("ROUND_TRIP");
+
+        FlightInventory mockInventory = new FlightInventory();
+        mockInventory.setDepartureTime(LocalDateTime.now().plusDays(1)); 
+
+        mockMvc.perform(post("/api/v1.0/flight/search")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+    }
+    @Test
+    void searchFlight_FailureRoundStart() throws Exception {
+        SearchRequestDto dto = new SearchRequestDto();
+        dto.setFromPlace("");
+        dto.setToPlace("Bhubaneswar");
+        dto.setJourneyDate(LocalDate.now().plusDays(1));
+        dto.setTripType("ROUND_TRIP");
+
+        FlightInventory mockInventory = new FlightInventory();
+        mockInventory.setDepartureTime(LocalDateTime.now().plusDays(1));
+
+        
+
+        mockMvc.perform(post("/api/v1.0/flight/search")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+    }
+
+
     @Test
     void searchFlight_missingField() throws Exception {
         SearchRequestDto dto = new SearchRequestDto();
@@ -151,6 +187,18 @@ class FlightSearchControllerTest {
         dto.setToPlace("Mumbai");
         dto.setJourneyDate(LocalDate.now().plusDays(1));
         dto.setTripType("ONE_WAY");
+
+        mockMvc.perform(post("/api/v1.0/flight/search")
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+    }
+    @Test
+    void searchFlight_missingTrip() throws Exception {
+        SearchRequestDto dto = new SearchRequestDto();
+        dto.setFromPlace("Delhi"); 
+        dto.setToPlace("Mumbai");
+        dto.setJourneyDate(LocalDate.now().plusDays(1));
+        dto.setTripType("");
 
         mockMvc.perform(post("/api/v1.0/flight/search")
                 .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
